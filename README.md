@@ -4,7 +4,7 @@ This is a simulator for the Hex8 instruction set designed by Prof. David May for
 
 For a few years, a physical version existed in Bristol, called the [big hex machine](https://bighexmachine.github.io/).
 
-See the files in modules/ for documentation:
+See the files in modules/ for documentation (clone/download the repo to use the rendered html):
 
   * [Overview](modules/hex8.html)
   * [A sample program](modules/program.html)
