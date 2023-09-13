@@ -6,15 +6,15 @@ For a few years, a physical version existed in Bristol, called the [big hex mach
 
 See the files in modules/ for documentation:
 
-  * [modules/hex8.html](Overview)
-  * [modules/program.html](A sample program)
-  * [modules/stacks.html](Using the stack)
+  * [Overview](modules/hex8.html)
+  * [A sample program](modules/program.html)
+  * [Using the stack](modules/stacks.html)
 
 If you want to build the processor yourself,
 
   * [modulesim](https://github.com/TeachingTechnologistBeth/ModuleSim) simulates the individual components
-  * [modules/components.html](description of the components)
-  * [modules/exercises.html](building the processor as a sequence of exercises)
+  * [description of the components](modules/components.html)
+  * [building the processor as a sequence of exercises](modules/exercises.html)
 
 The simulator is in [hex.html](hex.html), just download the repository and open the file - all code is client-side js. The source code is in [hex.js](hex.js).
 
