@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style type="text/css">
+body {
+    margin: 0 auto;
+    max-width: 50em;
+    font-family: "Georgia";
+    line-height: 1.5em;
+    padding: 4em 1em;
+    color: #222;
+}
+h1, h2 {
+    font-family: "Helvetica", "sans-serif";
+    margin-top: 1em;
+    padding-top: 1em;
+    color: #000;
+}
+code, pre {
+    background: #fdf6e3;
+    color: #586e75;
+    font-size: 105%;
+}
+pre {
+    vertical-align: text-bottom;
+    padding: 1em;
+    border-left: 2px solid #002b36;
+    border-bottom: 1px solid #657b83;
+}
+
+pre .instruction {
+    color: #dc322f;
+}
+pre .comment {
+    color: #859900;
+}
+pre .address {
+    color: #268bd2;
+}
+
+pre .comment .instruction {
+    color: #859900;
+}
+
+table {
+    background-color: #f8f8f8;
+}
+
+table th {
+    text-align: left;
+    padding: 0.5em;
+}
+
+table td {
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+}
+
+table code {
+    background-color: #f8f8f8;
+    color: #424d00;
+}
+</style>
+</head>
+<body>
+
+<h1>Stacks</h1>
+
+<p>We&rsquo;ve seen how we can split a program up into functions - small blocks of code
+that do exactly one thing and do it well. This makes it much easier to think
+about, create, test and debug our functions one at a time and then we can
+combine them into a larger program.</p>
+
+<p>We need to make sure we don&rsquo;t waste memory though. If we give each function its
+own block of memory for temporary variables, then if we have 100 functions that&rsquo;s
+100 blocks of memory we need to find even if we&rsquo;re only ever using one or two
+functions at a time. Worse still, we can&rsquo;t use recursion: a function can&rsquo;t call
+itself otherwise both copies of the function would use the same block of memory.</p>
+
+<p>But in C we can do multiplication like this. The idea is that <code>x*y = x+x+x...</code>
+repeating <code>y</code> times, so <code>x*y = x + x*(y-1)</code>. This algorithm is much easier to
+write if <code>mul</code> can call itself in the last line.</p>
+
+<pre><code>uint mul(uint x, uint y) {
+    if (y == 0) { return 0; }
+    else if (y == 1) { return x; }
+    else { return x + mul(x, y-1); }
+}
+</code></pre>
+
+<p>This is possible because C uses a stack for local variables (and return
+addresses). Whenever you call a function, the program code finds some new space
+on the stack and gives the function that space to work with. This way, however
+many functions you have, only the ones that you are currently using take up
+stack space - and functions can call themselves. The one thing that&rsquo;s slightly
+more complicated is that functions can&rsquo;t use their own fixed addresses for local
+variables anymore, but must compute where they go relative to the current stack.</p>
+
+<h2>Stack pointers</h2>
+
+<p>Most processors support stacks through a dedicated stack register and ISA
+operations such as <code>PUSH</code> and <code>POP</code> that work with the stack register. The stack
+on the x86 grows downwards instead of upwards, so a <code>PUSH x</code> does the following:</p>
+
+<ul>
+<li>decrease the stack register by the correct size to hold <code>x</code></li>
+<li>move <code>x</code> to where the stack register currently points (an indirect store)</li>
+</ul>
+
+
+<p>The x86 <code>PUSH</code> operation can take many kinds of operands, including both
+constants and register names and byte, word or double-word length specifiers.</p>
+
+<p>If the stack register <code>SP</code> is currently at <code>0x95</code>, it means that memory from
+<code>0x90</code> upwards is occupied by the stack. <code>PUSH 0x10</code> (a byte constant) first
+decreases the stack pointer one byte to <code>0x94</code>, then stores the constant <code>0x10</code>
+at memory location <code>0x94</code>.</p>
+
+<p><code>POP</code> takes a register operand and does the opposite of <code>PUSH</code>. If our stack
+pointer is at <code>0x94</code> then <code>POP al</code> (<code>al</code> is the name of a byte register on the
+x86) copies one byte from memory location <code>0x94</code> to the <code>al</code> register and
+increases the stack register to <code>0x95</code>.</p>
+
+<h2>Functions and stacks</h2>
+
+<p>To call a function on the x86, generally one uses a convention like the
+following (the exact convention depends on the programming language, and even
+within C there are different conventions because different operating systems do
+things different ways).</p>
+
+<ol>
+<li> If necessary, push the current registers onto the stack, since the function
+ may have to use them itself so their current values will get overwritten.</li>
+<li> Load the function arguments, either into registers or push them on the stack
+ (it is part of a function&rsquo;s definition/documentation which option to use, or
+ the programming language may define this for all its functions).</li>
+<li> Push the return pointer onto the stack (on a 32-bit machine this is 4 bytes
+ long).</li>
+<li> Jump to the start of the function.</li>
+</ol>
+
+
+<p>On x86, steps 3. and 4. can be done with a single instruction <code>CALL f</code> where <code>f</code>
+is the start address of the function.</p>
+
+<p>Once inside the function, the first thing a function will typically do is <code>PUSH</code>
+some values to reserve itself some space for temporary variables. This has to
+happen within the function as the caller should not need to know how much space
+the function needs - if we change a function later on, we don&rsquo;t need to adjust
+all the code that calls it. The function can then do its work and when it is
+done it first removes all the temporary variables again with some <code>POP</code>
+operations, then it executes the <code>RET</code> instruction which takes no parameters
+and does two things: first it removes the return pointer from the stack, then it
+jumps to it.</p>
+
+<p>Back in the code that called the function, the first thing to do is usually save
+the return value somewhere (typically a function returns this in a register),
+then restore the registers if they were saved on the stack before the call. The
+stack is now back to how it was before the function was called, and the program
+can continue.</p>
+
+<p><em>Note: the real situation is more complicated as there is a stack base pointer</em>
+<em>(BP) as well as a stack top pointer (SP).</em></p>
+
+<h2>Stacks on Hex8</h2>
+
+<p>The Hex8 architecture does not have a stack register or PUSH/POP instructions.
+We can simulate them as follows.</p>
+
+<p>We pick a memory location to hold the stack pointer, let&rsquo;s say <code>0x0F</code>. Then we
+need some space for the stack itself, let&rsquo;s say from <code>0xFF</code> downwards - so the
+stack occupies the upper end of our memory.</p>
+
+<p>When our program starts, before we use the stack the first time we have to
+initialise the stack pointer, something like this:</p>
+
+<pre><code><span class="instruction">PFIX</span> F
+<span class="instruction">LDAC</span> F
+<span class="instruction">STAM</span> F
+</code></pre>
+
+<p>This stores the constant <code>0xFF</code> at memory location <code>0x0F</code>.</p>
+
+<p>To push a value on the stack, we have to do the following. Due to there being
+only two registers, both of which we&rsquo;ll need to do the push, let&rsquo;s assume our
+value is in memory at address <code>m</code>:</p>
+
+<pre><code><span class="instruction">LDAM</span> F  <span class="comment">-- get the stack pointer</span>
+<span class="instruction">LDBC</span> 1  <span class="comment">-- subtract 1 from stack pointer</span>
+<span class="instruction">SUB</span>
+<span class="instruction">STAM</span> F  <span class="comment">-- store it back</span>
+<span class="instruction">LDBM</span> F  <span class="comment">-- load new stack pointer into B</span>
+<span class="instruction">LDAM</span> m  <span class="comment">-- load our value (with <span class="instruction">PFIX</span> if necessary)</span>
+<span class="instruction">STAI</span>
+</code></pre>
+
+<p>The final <code><span class="instruction">STAI</span></code> stores the value in the A register (our value that we just
+loaded) into the memory location pointed to by the B register (the new stack
+position).</p>
+
+<p>To pop a value, we increase the stack pointer then fetch the value (which is
+now in memory one below the stack pointer) into the A register.</p>
+
+<pre><code><span class="instruction">LDAM</span> F  <span class="comment">-- get the stack pointer</span>
+<span class="instruction">LDBC</span> 1  <span class="comment">-- increase by 1</span>
+<span class="instruction">ADD</span>
+<span class="instruction">STAM</span> F  <span class="comment">-- store it back</span>
+<span class="instruction">SUB</span>     <span class="comment">-- point the A register back at the value (B is still 1)</span>
+<span class="instruction">LDAI</span> 0  <span class="comment">-- and fetch it</span>
+</code></pre>
+
+<p>Both the push and pop operation described here overwrite the values of both the
+A and B registers.</p>
+
+<h2>Functions and Stacks in Hex8</h2>
+
+<p>We can call a function in Hex8 as follows:</p>
+
+<ul>
+<li>push parameters on the stack</li>
+<li>push the return address on the stack</li>
+<li>jump to the function start</li>
+<li>(function executes)</li>
+<li>pop the return value off the stack</li>
+<li>pop the return address off the stack</li>
+<li>pop the parameters off the stack</li>
+</ul>
+
+
+<p>For this to work, the function has to do the following:</p>
+
+<ul>
+<li>push space on the stack for temporary variables</li>
+<li>do its work</li>
+<li>remove the temporary variables again</li>
+<li>push the return value on the stack</li>
+<li>jump to the return address</li>
+</ul>
+
+
+<p>We have made the (admittedly unusual) decision to make it the caller&rsquo;s
+responsibility to remove the return address. This is because it is easier to
+handle the popping this way when the function has only two registers to work
+with. It does not, of course, matter who removes the return address as long as
+caller and callee agree on whose responsibility it is and the stack ends up the
+same as it was before the function started.</p>
+
+<h2>Multiplication example</h2>
+
+<p>Let&rsquo;s write the multiplication program in Hex8. At the start, we want to jump to
+<code>0x10</code> to leave the low 16 bytes of memory free for the stack pointer and some
+temporary space for the main program.</p>
+
+<pre><code><span class="address">0x00:</span> _start:  FF  <span class="instruction">PFIX</span> F  <span class="comment">-- set up stack</span>
+               3F  <span class="instruction">LDAC</span> F
+               2F  <span class="instruction">STAM</span> F
+               F1  <span class="instruction">PFIX</span> 1  <span class="comment">-- next 3 jump to 'main'</span>
+               40  <span class="instruction">LDBC</span> 0
+               C0  <span class="instruction">BRB</span>
+               00 00       <span class="comment">-- some padding</span>
+<span class="address">0x08:</span> data:    03 05       <span class="comment">-- the values we want to multiply</span>
+               00 00 00 00 00 00 <span class="comment">-- some more padding</span>
+<span class="address">0x10:</span> main:    <span class="comment">-- (program starts here)            </span>
+</code></pre>
+
+<p>In our main program, we want to call the <code>mul</code> function (that we&rsquo;ll write later)
+so let&rsquo;s fetch them (we know they&rsquo;re at <code>0x08</code> and <code>0x09</code>) and push them on the
+stack.</p>
+
+<pre><code>               <span class="comment">-- push value at 0x08</span>
+<span class="address">0x10:</span> main:    0F  <span class="instruction">LDAM</span> F
+               41  <span class="instruction">LDBC</span> 1
+               E0  <span class="instruction">SUB</span>
+               2F  <span class="instruction">STAM</span> F
+               1F  <span class="instruction">LDBM</span> F
+               08  <span class="instruction">LDAM</span> 8
+               80  <span class="instruction">STAI</span>
+
+               <span class="comment">-- push value at 0x09</span>
+               0F  <span class="instruction">LDAM</span> F
+               41  <span class="instruction">LDBC</span> 1
+               E0  <span class="instruction">SUB</span>
+               2F  <span class="instruction">STAM</span> F
+               1F  <span class="instruction">LDBM</span> F
+               09  <span class="instruction">LDAM</span> 9
+               80  <span class="instruction">STAI</span>
+
+               <span class="comment">-- push return address</span>
+               0F  <span class="instruction">LDAM</span> F
+               41  <span class="instruction">LDBC</span> 1
+<span class="address">0x20:</span>          E0  <span class="instruction">SUB</span>
+               2F  <span class="instruction">STAM</span> F
+               1F  <span class="instruction">LDBM</span> F
+               54  <span class="instruction">LDAP</span> 4  <span class="comment">-- this gets the return address into A</span>
+               80  <span class="instruction">STAI</span>
+
+               <span class="comment">-- call the function</span>
+               F4  <span class="instruction">PFIX</span> 4  <span class="comment">-- these 3 call "mul"</span>
+               40  <span class="instruction">LDBC</span> 0
+               C0  <span class="instruction">BRB</span>
+
+               <span class="comment">-- we've returned. Pop the return value into memory at 0x0A.</span>
+               0F  <span class="instruction">LDAM</span> F
+               41  <span class="instruction">LDBC</span> 1
+               D0  <span class="instruction">ADD</span>
+               2F  <span class="instruction">STAM</span> F
+               E0  <span class="instruction">SUB</span>
+               60  <span class="instruction">LDAI</span> 0
+               2A  <span class="instruction">STAM</span> A
+
+               <span class="comment">-- clear the return value and parameters, we can just</span>
+               <span class="comment">-- increase the stack pointer by 3</span>
+               0F  <span class="instruction">LDAM</span> F
+<span class="address">0x30:</span>          43  <span class="instruction">LDBC</span> 3
+               D0  <span class="instruction">ADD</span>
+               2F  <span class="instruction">STAM</span> F
+
+               <span class="comment">-- load the return value back into A</span>
+               0A  <span class="instruction">LDAM</span> A
+
+               <span class="comment">-- and halt</span>
+               FF  <span class="instruction">PFIX</span> F
+               9E  <span class="instruction">BR</span>   E
+
+               <span class="comment">-- more padding</span>
+               00 00 00 00 00 00 00 00 00 00
+</code></pre>
+
+<p>When the main function halts, the product (<code>3*5 = 15 = 0x0F</code>) ends up in the A
+register and the stack pointer is back at <code>0xFF</code>.</p>
+
+<h2>The multiplication function</h2>
+
+<p>Let&rsquo;s write the following multiplication function. We&rsquo;ve made it a bit simpler
+by using a temporary variable <code>r</code>.</p>
+
+<pre><code>function mul(x,y) {
+    if y = 0 then { r := 0 }
+    else if y = 1 then { r := x }
+    else {
+        r := mul(x, y - 1)
+        r := r + x
+    }
+    return r
+}
+</code></pre>
+
+<p>Let&rsquo;s write that multiplication function with labels first, then assemble it.
+We&rsquo;ll use <code>sp</code> to refer to the stack pointer (it&rsquo;s just the constant 0). The
+stack will look like this when the function starts - remember that <code>x</code> is pushed
+first, then <code>y</code>, and the stack grows <em>downwards</em>:</p>
+
+<pre><code>      ... (more stack, not ours)
+      (parameter x)
+      (parameter y)
+sp -&gt; (return address)
+      ... (the next thing we push will go here)
+</code></pre>
+
+<p>But we&rsquo;ll need a temporary variable <code>r</code> too, so we start off by moving the stack
+pointer one down to make this situation:</p>
+
+<pre><code>      ... (more stack, not ours)
+      (parameter x)
+      (parameter y)
+      (return address)
+sp -&gt; (local variable r)
+      ...
+</code></pre>
+
+<p>Instead of mapping the parameter names <code>x, y</code> to absolute memory addresses, we
+will use them instead to refer to <em>offsets</em> relative to the stack pointer. This
+means that <code>x</code> will stand for 3 and <code>y</code> for 2 and <code>r</code> for 0. We&rsquo;ll also use
+<code>return</code> to stand for 1.
+So to get the local variable x, we can do <code><span class="instruction">LDAM</span> sp, <span class="instruction">LDAI</span> x</code> which is really just
+<code><span class="instruction">LDAM</span> F, <span class="instruction">LDAI</span> 3</code> although the former makes it clearer what we mean while we&rsquo;re
+writing the program. To write a value <code>v</code> to <code>y</code>, the code is
+<code><span class="instruction">LDAC</span> v, <span class="instruction">LDBM</span> sp, <span class="instruction">STAI</span> y</code>.</p>
+
+<pre><code>           <span class="comment">-- create local variable r</span>
+  mul:     <span class="instruction">LDAM</span> sp
+           <span class="instruction">LDBC</span> 1
+           <span class="instruction">SUB</span>
+           <span class="instruction">STAM</span> sp
+
+           <span class="comment">-- load input y into A register</span>
+           <span class="comment">-- normally this is <span class="instruction">LDAM</span> sp, <span class="instruction">LDAI</span> y but A already has the sp</span>
+           <span class="instruction">LDAI</span> y
+
+           <span class="comment">-- compare to 0, if so then branch away</span>
+           <span class="instruction">BRZ</span>  yIS0
+
+           <span class="comment">-- ok, it's not 0, check if it's 1 (y is already in A)</span>
+           <span class="instruction">LDBC</span> 1
+           <span class="instruction">SUB</span>
+           <span class="instruction">BRZ</span>  yIS1
+
+           <span class="comment">-- if we're here then y is greater than 1</span>
+
+           <span class="comment">-- decrease sp by 3 to fit in new params and return address</span>
+           <span class="instruction">LDAM</span> sp
+           <span class="instruction">LDBC</span> 3
+           <span class="instruction">SUB</span>
+           <span class="instruction">STAM</span> sp
+           <span class="comment">-- WARNING, now we've moved the sp our local variables are 3</span>
+           <span class="comment">-- above where they were before! We'll compensate for this.</span>
+
+           <span class="comment">-- move x into "new parameter x"</span>
+           <span class="instruction">LDAI</span> x+3  <span class="comment">-- this is allowed as long as we evaluate it ourselves</span>
+           <span class="instruction">LDBM</span> sp
+           <span class="instruction">STAI</span> 2    <span class="comment">-- location of new x</span>
+
+           <span class="comment">-- subtract 1 from y, move to new parameter y</span>
+           <span class="instruction">LDAM</span> sp
+           <span class="instruction">LDAI</span> y+3
+           <span class="instruction">LDBC</span> 1
+           <span class="instruction">SUB</span>
+           <span class="instruction">LDBM</span> sp
+           <span class="instruction">STAI</span> 1    <span class="comment">-- location of new y</span>
+
+           <span class="comment">-- the return address (B still holds the sp)</span>
+           <span class="instruction">LDAP</span> 3
+           <span class="instruction">STAI</span> 0    <span class="comment">-- offset 0, where the return address goes</span>
+           <span class="instruction">PFIX</span> ?    <span class="comment">-- call mul, we'll work out the prefix later</span>
+           <span class="instruction">BR</span>   mul
+
+           <span class="comment">-- We've returned. The stack is now 4 off as there's a return</span>
+           <span class="comment">-- value on it too; move that into r.</span>
+           <span class="instruction">LDAM</span> sp
+           <span class="instruction">LDAI</span> 0    <span class="comment">-- the return value is at offset 0</span>
+           <span class="instruction">LDBM</span> sp
+           <span class="instruction">STAI</span> r+4
+
+           <span class="comment">-- and put the stack back to normal</span>
+           <span class="instruction">LDAM</span> sp
+           <span class="instruction">LDBC</span> 4
+           <span class="instruction">ADD</span>
+           <span class="instruction">STAM</span> sp
+
+           <span class="comment">-- with the stack back to normal, do r = r + x</span>
+           <span class="instruction">LDAM</span> sp
+           <span class="instruction">LDAI</span> r
+           <span class="instruction">LDBM</span> sp
+           <span class="instruction">LDBI</span> x
+           <span class="instruction">ADD</span>
+           <span class="instruction">LDBM</span> sp
+           <span class="instruction">STAI</span> r
+
+           <span class="comment">-- and go to the end</span>
+           <span class="instruction">BR</span> endmul
+
+           <span class="comment">-- y is 0, so store 0 into r and go to the end</span>
+  yIS0:    <span class="instruction">LDAC</span> 0
+           <span class="instruction">LDBM</span> sp
+           <span class="instruction">STAI</span> r
+           <span class="instruction">BR</span>   endmul
+
+           <span class="comment">-- it's one, store x into r and go to the end</span>
+  yIS1:    <span class="instruction">LDAM</span> sp
+           <span class="instruction">LDAI</span> x
+           <span class="instruction">LDBM</span> sp
+           <span class="instruction">STAI</span> r
+           <span class="comment">-- we don't need to "<span class="instruction">BR</span> endmul" here</span>
+           <span class="comment">-- as it's the next line anyway</span>
+
+           <span class="comment">-- We want to end up with one more variable on the stack</span>
+           <span class="comment">-- than when we started, and this should be the return</span>
+           <span class="comment">-- value r. But that's exactly what we already have!</span>
+           <span class="comment">-- So all we need to do is get the return address and go there.</span>
+  endmul:  <span class="instruction">LDBM</span> sp
+           <span class="instruction">LDBI</span> return
+           <span class="instruction">BRB</span>
+</code></pre>
+
+<p>We can now assemble the whole thing. Here is the code with the assembled bytes.</p>
+
+<pre><code><span class="comment">-- create r</span>
+<span class="address">0x40:</span> mul:      0F  <span class="instruction">LDAM</span> F  (sp)
+<span class="address">0x41:</span>           41  <span class="instruction">LDBC</span> 1
+<span class="address">0x42:</span>           E0  <span class="instruction">SUB</span>
+<span class="address">0x43:</span>           2F  <span class="instruction">STAM</span> F  (sp)
+
+<span class="comment">-- if y = 0</span>
+<span class="address">0x44:</span>           62  <span class="instruction">LDAI</span> 2  (y)
+<span class="address">0x45:</span>           F2  <span class="instruction">PFIX</span> 2  (yIS0)
+<span class="address">0x46:</span>           A5  <span class="instruction">BRZ</span>  5  (yIS0)
+
+<span class="comment">-- else if y = 1</span>
+<span class="address">0x47:</span>           41  <span class="instruction">LDBC</span> 1
+<span class="address">0x48:</span>           E0  <span class="instruction">SUB</span>
+<span class="address">0x49:</span>           F2  <span class="instruction">PFIX</span> 2  (yIS1)
+<span class="address">0x4A:</span>           A5  <span class="instruction">BRZ</span>  5  (yIS1)
+
+<span class="comment">-- else</span>
+<span class="address">0x4B:</span>           0F  <span class="instruction">LDAM</span> F  (sp)
+<span class="address">0x4C:</span>           43  <span class="instruction">LDBC</span> 3
+<span class="address">0x4D:</span>           E0  <span class="instruction">SUB</span>
+<span class="address">0x4E:</span>           2F  <span class="instruction">STAM</span> F  (sp)
+
+<span class="comment">-- mul(x, y-1)</span>
+<span class="address">0x4F:</span>           66  <span class="instruction">LDAI</span> 6  (x+3)
+<span class="address">0x50:</span>           1F  <span class="instruction">LDBM</span> F  (sp)
+<span class="address">0x51:</span>           82  <span class="instruction">STAI</span> 2  (new x)
+<span class="address">0x52:</span>           0F  <span class="instruction">LDAM</span> F  (sp)
+<span class="address">0x53:</span>           65  <span class="instruction">LDAI</span> 5  (y+3)
+<span class="address">0x54:</span>           41  <span class="instruction">LDBC</span> 1
+<span class="address">0x55:</span>           E0  <span class="instruction">SUB</span>
+<span class="address">0x56:</span>           1F  <span class="instruction">LDBM</span> F  (sp)
+<span class="address">0x57:</span>           81  <span class="instruction">STAI</span> 1  (new y)
+<span class="address">0x58:</span>           53  <span class="instruction">LDAP</span> 3  (new return address)
+<span class="address">0x59:</span>           80  <span class="instruction">STAI</span> 0  (return address on stack)
+<span class="address">0x5A:</span>           FE  <span class="instruction">PFIX</span> E  (mul)
+<span class="address">0x5B:</span>           94  <span class="instruction">BR</span>   4  (mul)
+
+<span class="comment">-- r := (return value)</span>
+<span class="address">0x5C:</span>           0F  <span class="instruction">LDAM</span> F  (sp)
+<span class="address">0x5D:</span>           60  <span class="instruction">LDAI</span> 0  (return value)
+<span class="address">0x5E:</span>           1F  <span class="instruction">LDBM</span> F  (sp)
+<span class="address">0x5F:</span>           84  <span class="instruction">STAI</span> 4  (r+4)
+
+<span class="comment">-- clean up after call</span>
+<span class="address">0x60:</span>           0F  <span class="instruction">LDAM</span> F  (sp)
+<span class="address">0x61:</span>           44  <span class="instruction">LDBC</span> 4
+<span class="address">0x62:</span>           D0  <span class="instruction">ADD</span>
+<span class="address">0x63:</span>           2F  <span class="instruction">STAM</span> F  (sp)
+
+<span class="comment">-- r := r + x</span>
+<span class="address">0x64:</span>           0F  <span class="instruction">LDAM</span> F  (sp)
+<span class="address">0x65:</span>           60  <span class="instruction">LDAI</span> 0  (r)
+<span class="address">0x66:</span>           1F  <span class="instruction">LDBM</span> F  (sp)
+<span class="address">0x67:</span>           73  <span class="instruction">LDBI</span> 3  (x)
+<span class="address">0x68:</span>           D0  <span class="instruction">ADD</span>
+<span class="address">0x69:</span>           1F  <span class="instruction">LDBM</span> F  (sp)
+<span class="address">0x6A:</span>           80  <span class="instruction">STAI</span> 0  (r)
+<span class="address">0x6B:</span>           98  <span class="instruction">BR</span>   8  (endmul)
+
+<span class="comment">-- r := 0</span>
+<span class="address">0x6C:</span> yIS0:     30  <span class="instruction">LDAC</span> 0
+<span class="address">0x6D:</span>           1F  <span class="instruction">LDBM</span> F  (sp)
+<span class="address">0x6E:</span>           80  <span class="instruction">STAI</span> 0  (r)
+<span class="address">0x6F:</span>           94  <span class="instruction">BR</span>   4  (endmul)
+
+<span class="comment">-- r := x</span>
+<span class="address">0x70:</span> yIS1:     0F  <span class="instruction">LDAM</span> F  (sp)
+<span class="address">0x71:</span>           63  <span class="instruction">LDAI</span> 3  (x)
+<span class="address">0x72:</span>           1F  <span class="instruction">LDBM</span> F  (sp)
+<span class="address">0x73:</span>           80  <span class="instruction">STAI</span> 0  (r)
+
+<span class="comment">-- return</span>
+<span class="address">0x74:</span> endmul:   1F  <span class="instruction">LDBM</span> F  (sp)
+<span class="address">0x75:</span>           71  <span class="instruction">LDBI</span> 1  (return)
+<span class="address">0x76:</span>           C0  <span class="instruction">BRB</span>
+</code></pre>
+
+<p>And here is our whole program assembled.</p>
+
+<pre><code><span class="address">0x00:</span>  FF 3F 2F F1 40 C0 00 00 03 05 00 00 00 00 00 00
+<span class="address">0x10:</span>  0F 41 E0 2F 1F 08 80 0F 41 E0 2F 1F 09 80 0F 41
+<span class="address">0x20:</span>  E0 2F 1F 54 80 F4 40 C0 0F 41 D0 2F E0 60 2A 0F
+<span class="address">0x30:</span>  43 D0 2F 0A FF 9E 00 00 00 00 00 00 00 00 00 00
+<span class="address">0x40:</span>  0F 41 E0 2F 62 F2 A5 41 E0 F2 A5 0F 43 E0 2F 66
+<span class="address">0x50:</span>  1F 82 0F 65 41 E0 1F 81 53 80 FE 94 0F 60 1F 84
+<span class="address">0x60:</span>  0F 44 D0 2F 0F 60 1F 73 D0 1F 80 98 30 1F 80 94
+<span class="address">0x70:</span>  0F 63 1F 80 1F 71 C0
+</code></pre>
+
+<p>The same again, without addresses for easy copy-pasting into the simulator.</p>
+
+<pre><code>FF 3F 2F F1 40 C0 00 00 03 05 00 00 00 00 00 00
+0F 41 E0 2F 1F 08 80 0F 41 E0 2F 1F 09 80 0F 41
+E0 2F 1F 54 80 F4 40 C0 0F 41 D0 2F E0 60 2A 0F
+43 D0 2F 0A FF 9E 00 00 00 00 00 00 00 00 00 00
+0F 41 E0 2F 62 F2 A5 41 E0 F2 A5 0F 43 E0 2F 66
+1F 82 0F 65 41 E0 1F 81 53 80 FE 94 0F 60 1F 84
+0F 44 D0 2F 0F 60 1F 73 D0 1F 80 98 30 1F 80 94
+0F 63 1F 80 1F 71 C0
+</code></pre>
+
+<p>This program is set up so that you can change the inputs in <code>0x08</code> and <code>0x09</code>
+and re-run it, and it will compute the product and place it in <code>0x0A</code>.</p>
+</body>
+</html>
+

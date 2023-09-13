@@ -1,0 +1,16 @@
+#!/bin/bash
+
+cat <<END >$1.html
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>$1</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+END
+
+# cp html-header $1.html
+multimarkdown --nolabels $1.md >> $1.html
+cat html-footer >> $1.html

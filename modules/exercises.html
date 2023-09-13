@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Hex8</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<p>Several bugs have been fixed in this file since the start of term.
+This version is from Monday 26 November at 2:30pm.</p>
+
+<p><em>Most of these exercises are incremental, that is each exercise asks you to add
+something on to the solution of the last one. There are some exceptions that are
+indicated as such.</em></p>
+
+<p><em>You should create a separate modulesim file for each exercise and submit the
+files for all exercises to SAFE. In addition, you should submit your table of
+instructions that you will create when you come to the control grid part of
+these exercises, and any test programs that you have written yourselves.</em></p>
+
+<p><em>Some exercises have a &#8220;checkpoint&#8221; at the end. This means that it is worth
+showing your design to a TA or staff member at this point, as a mistake here
+could lead you down a wrong path for the later exercises.</em></p>
+
+<h1>Clock circuit</h1>
+
+<p>The clock module offers us two phases &#8220;a&#8221; and &#8220;b&#8221;. However, we need more than
+this so we are going to build and 8-phase clock with phases 1a, 1b, 2a, 2b, 3a,
+3b, 4a, 4b.</p>
+
+<p>Build a 4-bit counter circuit containing</p>
+
+<ul>
+<li> 1 clock</li>
+<li> 1 AU</li>
+<li> 1 demultiplexor</li>
+<li> 2 registers</li>
+<li> 2 inputs</li>
+</ul>
+
+<p>so that the demultiplexor outputs cycle 1, 2, 3, 4, 1, 2, 3, 4 etc.
+The demultiplexor should step once per full clock cycle on the &#8220;a&#8221; clock phase.</p>
+
+<p>Further, make sure your demultiplexor does not step immediately after a reset.
+In other words, when you press &#8220;reset&#8221; the demultiplexor should return to output
+1 and when you advance the clock to phase &#8220;a&#8221; then the demultiplexor should
+<em>stay on 1</em> thoughout this and the following &#8220;b&#8221; clock phase, and only on the
+next &#8220;a&#8221; clock phase should the demultiplexor advance to output 2.</p>
+
+<p>Note: this is not a complicated task - the demultiplexor simply has to be at the
+correct position in the circuit and the &#8220;a&#8221; and &#8220;b&#8221; phases need to be in the
+right order.</p>
+
+<h1>4-bit data path</h1>
+
+<p><em>This exercise prepares you for the later 8-bit data path that you will use in
+your processor. Please use a fresh modulesim file as this exercise does not
+contribute to the processor directly.</em></p>
+
+<p>A simple data path is simply a loop containing AUs and registers like the counter
+circuits you are used to. However, it is configurable in the sense that you can
+control which registers are read and written to in each cycle.</p>
+
+<p>Create a 4-bit data path out of the following components:</p>
+
+<ul>
+<li> 1 AU</li>
+<li> 1 clock - set this to <em>manual</em></li>
+<li> 1 multiplexor</li>
+<li> 3 registers</li>
+<li> 2 split/merges</li>
+<li> 5 inputs</li>
+<li> 1 fan-out</li>
+</ul>
+
+<p>The AU only needs to support add mode so you can leave its control input empty.
+Use one of your registers as a holding register - it should be clocked in phase
+&#8220;a&#8221; and receive values from the AU. We will name the other registers &#8220;A&#8221; and &#8220;B&#8221;.</p>
+
+<ul>
+<li> For one input of the AU, you should be able to choose whether to take a
+value from the &#8220;A&#8221; register or a switch input.</li>
+<li> The other AU input can just be connected to the &#8220;B&#8221; register.</li>
+<li> One switch input should be on the control input of the AU.</li>
+<li> The &#8220;A&#8221; and &#8220;B&#8221; registers should both clock in the &#8220;b&#8221; clock phase, however
+you should use a switch and split/merge for each of these two registers so
+that you can choose whether to write to them or not.</li>
+</ul>
+
+<p>When your data path is set up, you should be able to use it for the following
+tasks. For each task, the clock should be set to manual so you can alternate
+between changing switch inputs and advancing the clock.</p>
+
+<ul>
+<li> Load a value into the &#8220;A&#8221; or &#8220;B&#8221; register.</li>
+<li> Copy a value from the &#8220;A&#8221; to the &#8220;B&#8221; register or back.</li>
+<li> Reset a register without using the reset button.</li>
+<li> Compute 3 + 2 + 2 + 1 and put the result in the &#8220;A&#8221; register.</li>
+</ul>
+
+<p>You have now built a calculating machine that can execute the following
+instructions in any combination and order, though you have to select each one
+by hand:</p>
+
+<ul>
+<li> <code>LDAC x</code> - load value <code>x</code> into the &#8220;A&#8221; register.</li>
+<li> <code>LDBC x</code> - load value <code>x</code> into the &#8220;B&#8221; register.</li>
+<li> <code>ADD</code> - add the values in the &#8220;A&#8221; and &#8220;B&#8221; registers and place the result
+in the &#8220;A&#8221; register.</li>
+<li> <code>CPA</code> and <code>CPB</code> - copy the value from the &#8220;A&#8221; register to the &#8220;B&#8221; register
+or vice versa.</li>
+</ul>
+
+<p>The last two are not hex8 instructions, but then a hex8 machine has access to
+memory to which it can copy values.</p>
+
+<p>Make a table on paper listing, for each of the four instructions, which inputs
+have to be in which positions (i.e. which switches have to be on/off) to get the
+data path to execute this instruction. Your table should have one row per
+instruction and one column per switch input.</p>
+
+<p>You can start to see how the hex8 computer is going to work. Instead of setting
+instructions by hand, the processor will fetch them from memory, decode them and
+set the AUs and multiplexors and registers up correctly. The data path is
+resposible for actually executing the instructions.</p>
+
+<p><em>Checkpoint: show your 4-bit data path and table to a TA or staff member for feedback.</em></p>
+
+<h1>Data path</h1>
+
+<p><em>We will now build the real data path - make a copy of your file from the
+clock circuit exercise and add to it for this exercise.</em></p>
+
+<p>The real data path is 8 bits wide instead of 4, so you need to &#8220;double up&#8221; the
+registers, AUs and multiplexors. Build an 8-bit data path around an AU pair with
+the following constraints:</p>
+
+<ul>
+<li> Do not connect anything to the clock yet.</li>
+<li> Use one 8-bit holding register (i.e. a pair of registers linked together)
+like before.</li>
+<li> Add multiplexors before both AU inputs.</li>
+<li> Create four 8-bit registers, which we will call &#8220;A&#8221;, &#8220;B&#8221;, &#8220;pc&#8221; and &#8220;O&#8221;.
+
+<ul>
+<li> Do not connect these registers to the AU input multiplexors yet.</li>
+<li> Fan out the data output from the holding register to the &#8220;A&#8221;, &#8220;pc&#8221; and
+&#8220;B&#8221; registers but not the &#8220;O&#8221; register.</li>
+</ul></li>
+</ul>
+
+<h1>Register File</h1>
+
+<p>We need to connect the four working registers up to the AU&#8217;s input multiplexors.
+This exercise is about working out what should be connected to what; the main
+effort is theoretical.</p>
+
+<p>Look at the 16 instructions in the <a href="hex8.html">hex 8 notes</a>. Each of these will
+use the AU exactly once to do either an addition, or a subtraction, or just pass
+a value through unchanged. (Ignore PFIX for now as we&#8217;ll handle it separately.)</p>
+
+<p>In addition to the instructions, there is another case when we need the AU:
+to increment the program counter which we can imagine as <code>pc &lt;- pc + 1</code>.</p>
+
+<p>For each of the instructions and for incrementing the program counter, decide
+how the AU should be set up by making a table with 3 columns:</p>
+
+<ul>
+<li> AU mode (add, subtract, pass through; carry 1 if necessary).</li>
+<li> AU left input - either a register or a constant, e.g. 0.</li>
+<li> AU right input - either a register or a constant.</li>
+</ul>
+
+<p>There is one important constraint for this table. The multiplexors on each of
+the AU inputs only have 4 possibilities, so the &#8220;AU left input&#8221; and &#8220;AU right
+input&#8221; columns can only have 4 distinct values each.</p>
+
+<p>Each row of the table should represent one instruction, except that you do not
+need a row for the <code>PFIX</code> instruction but you should add an extra row for
+&#8220;increment PC&#8221;. For example, the cell in the &#8220;ADD&#8221; row and &#8220;AU left input&#8221;
+column will indicate what the AU left input should be when it is executing an
+<code>ADD</code> instruction. You can (and later will) add extra columns to this table to
+record other information for each instruction.</p>
+
+<p>Once you have created the table, wire up the registers to the multiplexor inputs.
+If you have decided that in some row of your table, the left input to the AU
+will come from the &#8220;A&#8221; register then you will need cables from the &#8220;A&#8221; register
+to one input of the multiplexor for the AU left input, for example. If you
+decide that a register needs to be connected sometimes to the left input and
+sometimes to the right input then put fanouts after the register and connect it
+to both multiplexors.</p>
+
+<h1>Add the memory</h1>
+
+<p>There is nothing interesting in this step but it is separate to make earlier
+steps less confusing.</p>
+
+<ul>
+<li> Remove the connection going out of the holding register.</li>
+<li> Add fanouts after the holding register.</li>
+<li> Add multiplexors after these fanouts. Connect the fanouts to
+the multiplexors on the first port.</li>
+<li> Connect the multiplexor outputs to the fanouts below the main registers
+such that if the multiplexors have control input <code>0000</code>, the data path works
+like it did before.</li>
+<li> Now connect the fanouts to the &#8220;A&#8221; and &#8220;B&#8221; address ports of the memory
+and the data out ports of the memory to the second input of the multiplexors.</li>
+</ul>
+
+<p>We have now created a system in which we can switch the multiplexors to read
+from memory instead of from the AU. This way, with a
+simple switch, we can modify the <code>areg &lt;- oreg</code> instruction (copy the &#8220;O&#8221;
+register to the &#8220;A&#8221; register) to perform <code>areg &lt;- mem[oreg]</code> instead, that is
+read the value at the memory location pointed to by the &#8220;O&#8221; register into the
+&#8220;A&#8221; register.</p>
+
+<ul>
+<li> Next, place fanouts after the &#8220;A&#8221; register if you have not done so already
+and connect one of their outputs to the data inputs of the memory. This
+means that the only way we can get data into memory is through the &#8220;A&#8221;
+register but this is fine as both instructions that store values, <code>STAM</code> and
+<code>STAI</code>, both use the &#8220;A&#8221; register as the source of data.</li>
+<li> Make sure the write-enable switch on the memory is <em>OFF</em> for now.</li>
+</ul>
+
+<h1>Opcodes and clocks</h1>
+
+<p>The eight clock phases 1a - 4b will be used as follows.</p>
+
+<ul>
+<li> 1: fetch the next instruction</li>
+<li> 2: increment the program counter</li>
+<li> 3: execute the instruction</li>
+<li> 4: unused</li>
+</ul>
+
+<p>In more detail, The &#8220;a&#8221; phases all clock the holding register and the &#8220;b&#8221; phases
+copy it to where its value should go. So the clock phases are:</p>
+
+<ul>
+<li> 1a: copy pc to holding register, to fetch the next instruction from memory.</li>
+<li> 1b: save opcode and operand into registers.</li>
+<li> 2a: increment pc and put result into holding register.</li>
+<li> 2b: copy result from holding register back into pc.</li>
+<li> 3a: execute operation and put result into holding register.</li>
+<li> 3b: copy the result to wherever it belongs (register or memory).</li>
+</ul>
+
+<p>To implement this, create a 4-bit opcode register and set it to clock in phase
+1b. This means to place a split/merge before its control input and connect the
+clock phase &#8220;b&#8221; and demultiplexor &#8220;1&#8221; signals to it correctly.</p>
+
+<p>Next, create a connection from the fanout from the high 4 bits coming out of the
+holding register into the opcode register.</p>
+
+<h1>The beginning of the control grid</h1>
+
+<p>The data path has a number of components that have different configurations,
+for example:</p>
+
+<ul>
+<li> The AU can be in add or subtract mode and the carry in can be on or off.</li>
+<li> The MUXes before the left and right inputs to the AU can be in one of four
+input configurations each.</li>
+<li> The MUXes after the holding register can be in &#8220;read from holding register&#8221;
+or &#8220;read from memory&#8221; configurations.</li>
+</ul>
+
+<p>The control grid will contain a number of chained ORs that control what the data
+path does at any particular moment.</p>
+
+<p>Suppose that we want the holding register MUXes to be in &#8220;read from memory&#8221; mode
+whenever we&#8217;re in clock phase 1 (to load a new instruction) or we&#8217;re executing
+a <code>LDAM</code> instruction (we&#8217;ll come to that later on). In this case we could place
+a chained OR in the control grid, label it something useful like &#8220;mem read&#8221; and
+connect the output of this chained OR to the control signal of the holding
+register MUXes. Then we create a wire that&#8217;s on whenever we&#8217;re in clock phase 1
+and connect it to one input of the chained OR, and we create another wire that&#8217;s
+on whenever we&#8217;re executing <code>LDAM</code> and connect that to another input of the
+chained OR.</p>
+
+<p>If we wanted to have a component in the data path do something whenever e.g. the
+clock phase is 3 AND the instruction is <code>PFIX</code>, we can use another MUX to achive
+this: we could connect the &#8220;clock phase 3&#8221; signal to the control input of the
+MUX and the <code>PFIX</code> signal to the <em>second</em> data input of the MUX. This way, the
+output of the MUX will be on whenever both conditions are true (this assumes
+that both input signals are <code>0001</code> for on and <code>0000</code> for off, which is generally
+the case).</p>
+
+<p>Your first task for this exercise is to come up with a short name for every
+control input to the data path and add these names as columns to your table that
+you created earlier for the &#8220;register file&#8221; exercise. Then place a chained OR
+for each control input you have identified and connect its output to the control
+signal in question. As you implement more instructions, keep track in the table
+of which instructions and/or clock phases need which control signals on the data
+path to be active.</p>
+
+<p>For each register you will need a separate &#8220;enable&#8221; control input. For example,
+in the <code>LDAC</code> instruction you want to write to the &#8220;A&#8221; register but not the &#8220;B&#8221;
+register. So in the table row for the <code>LDAC</code> instruction you want a 1 in the
+&#8220;write A register&#8221; column and on your control grid, the <code>LDAC</code> wire from the
+decoder needs to connect (among other things) to the chained OR for the &#8220;write
+A register&#8221; signal.</p>
+
+<p>Implementing a new instruction always means the following steps:</p>
+
+<ul>
+<li> Decide how the data path needs to be set up for this instruction and record
+this information in the table.</li>
+<li> Connect the necessary wires in the control grid, as indicated in the table.</li>
+<li> Test that it works.</li>
+</ul>
+
+<p>Your second task is to deal with the problem that the inputs to the MUXes for
+the left and right inputs to the AU are two-bit signals, as there are four
+inputs to each MUX. You might not need all four inputs but you&#8217;ll need more than
+two.</p>
+
+<p>A two-bit signal is a combination of two one-bit signals. To complete the second
+task, use split-merges to combine the signals. For the left and right MUXes before
+the AU, you will need at least two chained ORs and one split-merge to select the
+correct input. The idea is that one chained OR controls the low-order bit and the
+other chained OR controls the second-lowest bit of the MUX control input. If in a
+particular instruction you want both bits on the MUX control input to be on, you
+pass the relevant wire through both the chained ORs for this MUX.</p>
+
+<p>Note: suppose that when clock phase 2 is active, you want several things to
+happen on the data path. The wrong way to achieve this is to place a fan-out on
+the &#8220;phase 2&#8221; signal and wire it up to all chained ORs that you want it to
+activate. The correct way is to connect the &#8220;2&#8221; signal to the input of the first
+chained OR and then connect the matching output of the chained OR to an input of
+the next one, and so on.</p>
+
+<p><em>Checkpoint: show your table and your processor to a TA or member of staff.</em></p>
+
+<h1>The program counter</h1>
+
+<p>The aim of this exercise is to get the PC to increment in clock phase two.</p>
+
+<ul>
+<li> In clock phase 2a, the AU should take the PC as input and add one, sending
+the result to the holding register (which clocks in every &#8220;a&#8221; clock phase).</li>
+<li> In clock phase 2b, the PC should write. (You have hopfully already set up
+you data path such that the input to the PC comes from the holding register.</li>
+</ul>
+
+<p>To get clock phase 2a to work correctly, think about which control signals you
+need to be active. You can use the &#8220;2&#8221; signal as input to the chained ORs as it
+doesn&#8217;t do any harm to keep the data path in the same configuration for phases
+2a and 2b - the holding register doesn&#8217;t do anything in the &#8220;b&#8221; phases after all.</p>
+
+<p>To get the PC to write in clock phase 2b, you don&#8217;t need any chained ORs yet -
+just use a split-merge to combine the &#8220;2&#8221; and &#8220;b&#8221; signals correctly, such that
+if you press the reset on the clock then this signal gets through whatever the
+clock phase is.</p>
+
+<h1>The decoder</h1>
+
+<p>This exercise is to fetch and decode instructions in clock phase 1.</p>
+
+<p>In clock phase 1a, we want to read the current instruction from memory. This
+means that the data path should copy the PC to the holding register, which in
+turn drives the memory address input.</p>
+
+<p>Implement this by adding any components and wires necessary to the control grid.
+As in the last exercise, you can simply use the &#8220;1&#8221; clock signal: it doesn&#8217;t
+matter what the AUs are doing in phase &#8220;b&#8221;.</p>
+
+<p>In clock phase 1b, we want to store the opcode (the high four bits that we just
+fetched from memory into the holding register) into a separate register.</p>
+
+<ul>
+<li> Add a new 4-bit register, which we will call the opcode register.</li>
+<li> Set it to clock in phase 1b only (use a split-merge).</li>
+<li> Label it &#8220;opcode&#8221; (Control+L in the simulator sets a label).</li>
+<li> The memory data goes through the MUXes after the holding register and from
+there to a fanout. Connect the upper 4 bits from this fanout to the input of
+the opcode register.</li>
+<li> Connect the low 4 bits from this fanout to the lower half of the &#8220;O&#8221; register.</li>
+</ul>
+
+<p>You can now do your first test of the processor. Create a file with the following
+contents in a text editor and save it as <code>test.hex</code>.</p>
+
+<pre><code>11 22 33 44 55 FF
+</code></pre>
+
+<ul>
+<li> In the simulator, right-click the memory and choose &#8220;View/edit NRAM data&#8221;.</li>
+<li> In the window that opens, choose &#8220;File/Load Data&#8221; and select the file that
+you just created.</li>
+<li> Lower the speed of your simulation and reset the clock.</li>
+</ul>
+
+<p>If you have wired up everything correctly, the PC should increment by one on
+each complete clock cycle and the operand register should cycle through the
+values <code>0001</code>, <code>0010</code>, <code>0011</code>, <code>0100</code>, <code>0101</code>, <code>1111</code> and then reset to <code>0000</code>,
+stepping in clock phase 1b each time (the PC steps in 2b).</p>
+
+<h1>Decoding</h1>
+
+<p>Now that we have saved the opcode in a register, we want to decode it. Decoding
+means taking the opcode, which is one 4-bit signal, and using it to activate one
+of <code>2^4 = 16</code> one-bit signals, one for each instruction. This way, whenever say
+an <code>ADD</code> instruction is being executed only the <code>ADD</code> signal is on and we can
+use it to set up the data path appropriately.</p>
+
+<p>Your task is to use demultiplexors to decode the signal from the opcode register
+into one of 16 1-bit signals.</p>
+
+<ul>
+<li> The signal from the opcode register should connect to the control inputs of
+the demultiplexors.</li>
+<li> A single demultiplexor takes a 2-bit control signal. Use a split-merge in
+&#8220;split&#8221; arrangement to split the 4-bit signal from the opcode register into
+two 2-bit signals.</li>
+<li> For the data input of the demultiplexors, use the phase &#8220;3&#8221; (execute) clock
+signal. This has the effect that in clock phase 3, exactly one of the 16
+signals is <code>0001</code> whereas in the other clock phases, all 16 signals are off.
+After all, we only want the data path to execute the instruction in phase 3,
+in phases 1 and 2 it&#8217;s already in use for fetching the instruction and
+incrementing the PC.</li>
+</ul>
+
+<p><em>Checkpoint: show your processor design to a TA or staff member for feedback.</em></p>
+
+<h1>The &#8220;O&#8221; register</h1>
+
+<p>The &#8220;O&#8221; register is special in that the high and low halves operate differently.</p>
+
+<ul>
+<li> For any instruction except <code>PFIX</code>, the low 4 bits representing the operand
+need to be copied into the &#8220;O&#8221; register <em>before</em> the instruction executes.</li>
+<li> A <code>PFIX z</code> instruction results in the 4-bit value <code>z</code> being placed in the
+high 4 bits of the &#8220;O&#8221; register for the <em>next</em> instruction.</li>
+<li> For any instruction except <code>PFIX</code>, the high 4 bits of the &#8220;O&#8221; register must
+be set to zero <em>after</em> the instruction has executed.</li>
+</ul>
+
+<p>For this to work correctly, set the low 4-bit part of the &#8220;O&#8221; register to clock
+in phase 1b and feed the low 4 bits of the holding register into it (this happens
+at the same time as the high 4 bits get sent to the opcode register).</p>
+
+<p>Set the high 4 bits of the &#8220;O&#8221; register to clock in phase 3b.</p>
+
+<p>Use a new MUX to control the data input to the high bits of the &#8220;O&#8221; register:</p>
+
+<ul>
+<li> If the instruction is <code>PFIX</code>, the MUX should feed the low &#8220;O&#8221; register bits
+through to the high ones (the MUX can be on throughout multiple phases, all
+that matters is that it is on in phase 3b when the high &#8220;O&#8221; register clocks).</li>
+<li> If the instruction is not <code>PFIX</code>, the MUX should feed <code>0000</code> to the high &#8220;O&#8221;
+register. You don&#8217;t need an input component - just leave the MUX input empty
+for this.</li>
+<li> The control input of this MUX should therefore be the <code>PFIX</code> signal from the
+decoder that you built in the last exercise. This will only ever be on in
+phase 3 so you don&#8217;t need an extra MUX to deal with clock phases.</li>
+</ul>
+
+<p>Create a text file called <code>pfix.hex</code> with the following contents and load it as
+described in the decoder exercise:</p>
+
+<pre><code>00 01 0f f1 02 ff 03 fe fd 01
+</code></pre>
+
+<p>The &#8220;O&#8221; register should cycle through the following values when you reset and
+run your processor. You probably want to step through the instructions manually
+(SPACE pauses the processor; reset it then the DOT (.) key advances one step).
+Note that the low 4 bits change on 1b and the high ones on phase 3b.</p>
+
+<pre><code>Hex  Bin        Instruction  Phase
+---  ---------  -----------  -----
+00   0000 0000  0            all
+01   0000 0001  1            1b
+0f   0000 1111  2            1b
+01   0000 0001  3            1b
+11   0001 0001  3            3b
+12   0001 0010  4            1b
+02   0000 0010  4            3b
+0f   0000 1111  5            1b
+ff   1111 1111  5            3b
+f3   1111 0011  6            1b
+03   0000 0011  6            3b
+0e   0000 1110  7            1b
+ee   1110 1110  7            3b
+ed   1110 1101  8            1b
+dd   1101 1101  8            3b
+d1   1101 0001  9            1b
+01   0000 0001  9            3b
+00   0000 0000 10            1b
+</code></pre>
+
+<p>Congratulations, you have implemented your first processor instruction!</p>
+
+<h1>Constant loads : LDAC and LDBC</h1>
+
+<p>Your next instructions to implement are <code>LDAC</code> and <code>LDBC</code>. Looking at the
+<a href="hex8.html">instruction table</a>, all these instructions do is copy the &#8220;O&#8221;
+register into the &#8220;A&#8221; resp. &#8220;B&#8221; register. Since the instruction executes in
+clock phase 3 and the current operand is already stored in the &#8220;O&#8221; register
+in phase 1b, this has the effect of copying the current operand (plus any prefix
+from the last instruction) into the &#8220;A&#8221; resp. &#8220;B&#8221; registers.</p>
+
+<p>Task: implement <code>LDAC</code> and <code>LDBC</code> by creating the appropriate connections in the
+control grid. Specifically,</p>
+
+<ul>
+<li> If the instruction is <code>LDAC</code> or <code>LDBC</code> then the data path should pass the
+contents of the &#8220;O&#8221; register through the AU during phase 3, with the result
+that this value gets copied to the holding register in phase 3a.</li>
+<li> In phase 3b, you want to clock the &#8220;A&#8221; register if it&#8217;s a <code>LDAC</code> and the &#8220;B&#8221;
+register if it&#8217;s a <code>LDBC</code>.</li>
+</ul>
+
+<p>Remember that each register has a split/merge before its control input that
+combines a clock and an enable signal. The clock signal for the &#8220;A&#8221; and &#8220;B&#8221;
+registers' split-merge inputs should be just the &#8220;b&#8221; clock signal (this lets
+resets through as well); the enable part should only be active when you really
+want to write. At the moment, the enable signal for the &#8220;A&#8221; register should be
+on exactly when the clock is in phase 3 AND the current instruction is <code>LDAC</code>.</p>
+
+<p>Hint: you don&#8217;t need to do anything complicated to get the &#8220;AND&#8221; in the last
+sentence right. The <code>LDAC</code> signal from the decoder is alredy such that it&#8217;s only
+on when the phase is 3 and the instruction is <code>LDAC</code>. So at the moment you can
+just connect the <code>LDAC</code> signal from the decoder to the enable input of the &#8220;A&#8221;
+register split/merge. Later when you have several instructions that write to the
+&#8220;A&#8221; register, the enable signal will come from a new chained OR that combines
+the signals for all these instructions.</p>
+
+<p><em>Remember to update your table of control grid settings too (from an earlier
+exercise) whenever you change the control grid. It will come in useful as your
+grid becomes more complex.</em></p>
+
+<p>To test your processor, create a file <code>ldac.hex</code> with the following contents and
+run it:</p>
+
+<pre><code>31 32 f3 34 41 42 f3 44
+</code></pre>
+
+<p>This disassembles to the following instructions:</p>
+
+<pre><code>31  LDAC 1
+32  LDAC 2
+F3  PFIX 3
+34  LDAC 4
+41  LDBC 1
+42  LDBC 2
+F3  PFIX 3
+44  LDBC 4
+</code></pre>
+
+<p>So when you run the file, you should see first the &#8220;A&#8221; then the &#8220;B&#8221; register
+step <code>0000 0000</code>, <code>0000 0001</code>, <code>0000 0010</code> and <code>0011 0100</code>.</p>
+
+<p><em>Checkpoint: show your processor design to a TA or staff member for feedback.</em></p>
+
+<h1>Arithmetic : ADD, SUB, LDAP</h1>
+
+<p>Implement the following instructions by adding to the control grid:</p>
+
+<pre><code>opcode  mnemonic  semantics
+------  --------  ---------
+0101    LDAP      areg &lt;- pc   + oreg
+1101    ADD       areg &lt;- areg + breg
+1110    SUB       areg &lt;- areg - breg
+</code></pre>
+
+<p>Although <code>LDAP</code> has a different use in programs, in the processor it is very
+similar to <code>ADD</code> - just the input MUXes to the AU are set differently. <code>SUB</code>
+needs the AU to be in subtract mode; be careful about how you have to set the
+carry in. The AU takes a three-bit control signal (the high bit is unused, see
+the <a href="components.html">component description</a>).</p>
+
+<p>Since all these instructions, as well as <code>LDAC</code> previously, write to the &#8220;A&#8221;
+register you will need a chained OR for the &#8220;A&#8221; register enable signal.</p>
+
+<p>You should come up with your own test program to test that these three
+instructions are working correctly. This involves both writing a test program
+and documenting what effects you expect to see when that will tell you whether
+your processor is working correctly.</p>
+
+<h1>Memory reads</h1>
+
+<p>You have already implemented <code>LDAC: areg &lt;- oreg</code> by setting up the data path so
+that in phase 3a, the &#8220;O&#8221; register contents go through the AU into the holding
+register; in phase 3b you copy the holding register to the &#8220;A&#8221; register.</p>
+
+<p><code>LDAM: areg &lt;- mem[oreg]</code> is almost identical to <code>LDAC</code>, there is only one
+component on the data path that you have to set differently. Can you see it?
+<code>mem[oreg]</code> means the value in the memory at address <code>oreg</code>, which you get by
+feeding the &#8220;O&#8221; register into the memory&#8217;s address input and reading the result
+off the memory&#8217;s data output.</p>
+
+<p>Once you know what to do, implement the following instructions.</p>
+
+<pre><code>opcode  mnemonic  semantics
+------  --------  ---------
+0000    LDAM      areg &lt;- mem[oreg]
+0001    LDBM      breg &lt;- mem[oreg]
+0110    LDAI      areg &lt;- mem[areg + oreg]
+0110    LDBI      breg &lt;- mem[breg + oreg]
+</code></pre>
+
+<p>Then, write your own test program(s) and document what you are expecting to see
+when you run these programs to tell you that your processor is working correctly.</p>
+
+<h1>Storing to memory</h1>
+
+<p>This task is to implement the following two instructions, which as usual means
+adding things to the control grid to set the data path correctly in phase 3.</p>
+
+<pre><code>opcode  mnemonic  semantics
+------  --------  ---------
+0010    STAM      mem[oreg] &lt;- areg
+1000    STAI      mem[breg + oreg] &lt;- areg
+</code></pre>
+
+<p><code>STAM</code> means take the value in the &#8220;A&#8221; register and store it in memory at the
+location pointed to by the &#8220;O&#8221; register. To do this, in phase 3a we want to copy
+the &#8220;O&#8221; register to the holding register, which feeds the memory&#8217;s address input.
+The memory&#8217;s data input (which we haven&#8217;t used yet) needs to come from the &#8220;A&#8221;
+register and the memory&#8217;s control input needs to be at <code>0101</code> (just like a
+register) in phase 3b.</p>
+
+<p>Hint: before you build in complicated switching logic, note that these are the
+only operations that write to memory and both take their data input from the &#8220;A&#8221;
+register.</p>
+
+<p><em>You also need to turn the memory&#8217;s write enable switch on. In the simulator,
+click it and it should turn blue. When the memory is writing data, the write
+LED comes on.</em></p>
+
+<p>As before, you should write and document your own test program(s). This also
+applies to the following exercises, where it will no longer be mentioned.</p>
+
+<h1>Unconditional branching</h1>
+
+<p>There is nothing new about the following branching instructions. They just load,
+compute and store data in a register, except now they store to PC instead of the
+&#8220;A&#8221; register.</p>
+
+<pre><code>opcode  mnemonic  semantics
+------  --------  ---------
+1001    BR        pc &lt;- pc + oreg
+1100    BRB       pc &lt;- breg
+</code></pre>
+
+<p>There is however something new about when you enable the PC. It should write:</p>
+
+<ul>
+<li> Always, in phase 2b (for increment).</li>
+<li> Again in phase 3b, but only if the instruction is a branch.</li>
+</ul>
+
+<p>That is the real task of this exercise. Hint: write out the enable condition for
+the PC as a formula with AND and OR connectives. Then build a circuit for the
+formula, using a chained OR for an OR and a MUX for an AND. (One could use LUs
+too with a fixed control signal, if one really wanted to.)</p>
+
+<p>Note: if instruction 4 is <code>BR 2</code> then the PC ends up at <code>7 = 4 + 2 + 1</code>, not 6.
+This is the correct behaviour! The reason is that in phase 2 of instruction 4
+you already incremented the PC to 5; in phase 3 you add the 2 from the operand
+to it again to get 7. It is the hex8 programmer&#8217;s job to take this into account.</p>
+
+<h1>Conditional branching</h1>
+
+<p>Our final instructions are the following:</p>
+
+<pre><code>opcode  mnemonic  semantics
+------  --------  ---------
+1010    BRZ       if areg = 0 then pc &lt;- pc + oreg
+1011    BRN       if areg &lt; 0 then pc &lt;- pc + oreg
+</code></pre>
+
+<p>There are two parts to implementing them.</p>
+
+<p>First, place a new 8-bit AU pair in your design; you&#8217;ll use it for the &#8220;if&#8221;
+tests. The only thing we want to test is the &#8220;A&#8221; register value, so connect the
+&#8220;A&#8221; register to the new AU left inputs.</p>
+
+<p>Secondly, set up the control grid. You now have a new control signal to select
+if the comparison AUs should test for 0 or negative and the PC enable condition
+is now:</p>
+
+<ul>
+<li> Always, in phase 2b (for increment).</li>
+<li> Again in phase 3b, if the instruction is <code>BR</code> or <code>BRB</code>.</li>
+<li> Again in phase 3b if the instruction is <code>BRZ</code> or <code>BRN</code> and the comparison
+signal (the comparison output of the new AUs) is on.</li>
+</ul>
+
+<p>Congratulations - you have built a complete processor!</p>
+</body>
+</html>
+

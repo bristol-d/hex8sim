@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style type="text/css">
+body {
+    margin: 0 auto;
+    max-width: 50em;
+    font-family: "Georgia";
+    line-height: 1.5em;
+    padding: 4em 1em;
+    color: #222;
+}
+h1, h2 {
+    font-family: "Helvetica", "sans-serif";
+    margin-top: 1em;
+    padding-top: 1em;
+    color: #000;
+}
+code, pre {
+    background: #fdf6e3;
+    color: #586e75;
+    font-size: 105%;
+}
+pre {
+    vertical-align: text-bottom;
+    padding: 1em;
+    border-left: 2px solid #002b36;
+    border-bottom: 1px solid #657b83;
+}
+
+pre .instruction {
+    color: #dc322f;
+}
+pre .comment {
+    color: #859900;
+}
+pre .address {
+    color: #268bd2;
+}
+
+pre .comment .instruction {
+    color: #859900;
+}
+
+table {
+    background-color: #f8f8f8;
+}
+
+table th {
+    text-align: left;
+    padding: 0.5em;
+}
+
+table td {
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+}
+
+table code {
+    background-color: #f8f8f8;
+    color: #424d00;
+}
+</style>
+</head>
+<body>
+
+<h1>Programming Hex8 in machine code</h1>
+
+<p>We want to write a program that takes five numbers and computes their average.
+We will assume for now that the sum of the five numbers does not exceed 255 or
+we would have to deal with overflows (or use a 16-bit processor) and we will
+round up the average to the nearest whole number (so the average of 1,1,2 is 2
+which is 1.33... rounded up).</p>
+
+<h2>Memory layout</h2>
+
+<p>Our memory is a block of 256 bytes and we are free to choose where to place the
+inputs, temporary variables, main code, functions etc. subject to only two
+considerations. We will give all addresses in hexadecimal notation so they are
+exactly two characters long.</p>
+
+<ul>
+<li>Program execution begins at the first address 0x00.</li>
+<li>To load/store to an address in memory from 0x10-0xFF requires two
+instructions and thus two processor cycles, i.e. storing the A register to
+0x12 is <span class="instruction">PFIX</span> 1, <span class="instruction">STAM</span> 2 whereas the adresses 0x00-0x0F need only one cycle to
+access (this is a consequence of our instruction set, not our memory type).
+By using these low addresses as temporary storage, we can make a program up
+to twice as fast.</li>
+</ul>
+
+<p>We will arbitrarily make the following choices. This is called dividing memory
+into <em>sections</em> (sometimes also called <em>segments</em>).</p>
+
+<ul>
+<li>Temporary storage in addresses 0x00-0x0F.</li>
+<li>Our inputs will be in 0x10-0x14.</li>
+<li>The main program code will start at 0x20. Functions that we need will live
+higher up in memory.</li>
+</ul>
+
+<p>Wait ... doesn't a program have to start at 0x00? It does, but we can begin with
+instructions to jump to our real start point at 0x20. Once we've done this, we
+can overwrite 0x00 with data if we want, as execution is never going to return
+there. To jump to 0x20 the instructions are <code><span class="instruction">PFIX</span> 2, <span class="instruction">LDBC</span> 0, <span class="instruction">BRB</span></code> which puts the
+address 0x20 in the B register and then jumps to it. Our program will then
+start like this the format is <code>address: instruction  meaning</code>.</p>
+
+<pre><code><span class="address">0x00:</span> F2  <span class="instruction">PFIX</span> 2
+<span class="address">0x01:</span> 40  <span class="instruction">LDBC</span> 0
+<span class="address">0x02:</span> C0  <span class="instruction">BRB</span>
+</code></pre>
+
+<p>(There is another way to do this that takes only two instructions, we'll come to
+that in a moment.)</p>
+
+<p>So here's how our program will look like. The values before the colon (:) are
+addresses and not part of the program itself.</p>
+
+<pre><code><span class="address">0x00:</span> F2 40 C0 00 00 00 00 00 00 00 00 00 00 00 00 00
+<span class="address">0x10:</span> (data will go here)
+<span class="address">0x20:</span> (actual program starts here)
+</code></pre>
+
+<h2>The start of our program</h2>
+
+<p>In our actual program, the first thing we want to do is add the five numbers
+stored at 0x10-0x14. In a higher-level language, we could think of them as an
+array <code>a</code> and we would write code like <code>s = a[0] + a[1] + a[2] + a[3] + a[4];</code>.
+In assembly we not only need to do things one step at a time, we also need to
+think about where our values are stored - variables like <code>a</code> or <code>s</code> are only
+names for memory addresses, which our compiler translates into the real memory
+addresses for us. In our case <code>a</code> is at 0x10 and let's say we want the result
+<code>s</code> in 0x01. The procedure is:</p>
+
+<ul>
+<li>fetch the value at 0x10 into the A register</li>
+<li>fetch the value at 0x11 into the B register</li>
+<li>add the A and B registers, the result will end up in the A register</li>
+<li>fetch the value at 0x12 into the B register</li>
+<li>add the A and B registers, the result will end up in the A register</li>
+<li>fetch the value at 0x13 into the B register</li>
+<li>add the A and B registers, the result will end up in the A register</li>
+<li>fetch the value at 0x14 into the B register</li>
+<li>add the A and B registers, the result will end up in the A register</li>
+<li>store the A register's value to the address 0x01</li>
+</ul>
+
+<p>Which immediately gives us the following code (anything after <code><span class="comment">--</code> is a comment)</p></span>
+
+<pre><code><span class="comment">-- load from 0x10 into A</span>
+<span class="comment">-- since we need to set the high bits, we need a prefix instruction:</span>
+<span class="comment">-- these two instructions are the equivalent of a hypothetical "<span class="instruction">LDAM</span> 0x10"</span>
+F1  <span class="instruction">PFIX</span> 1
+00  <span class="instruction">LDAM</span> 0
+<span class="comment">-- load from 0x11 into B, "<span class="instruction">LDBM</span> 0x11"</span>
+F1  <span class="instruction">PFIX</span> 1
+11  <span class="instruction">LDBM</span> 1
+<span class="comment">-- add, result lands in A</span>
+D0  <span class="instruction">ADD</span>
+<span class="comment">-- load from 0x12 into B, "<span class="instruction">LDBM</span> 0x12"</span>
+F1  <span class="instruction">PFIX</span> 1
+12  <span class="instruction">LDBM</span> 2
+<span class="comment">-- add</span>
+D0  <span class="instruction">ADD</span>
+<span class="comment">-- load from 0x13 into B, "<span class="instruction">LDBM</span> 0x13"</span>
+F1  <span class="instruction">PFIX</span> 1
+13  <span class="instruction">LDBM</span> 3
+<span class="comment">-- add</span>
+D0  <span class="instruction">ADD</span>
+<span class="comment">-- load from 0x14 into B, "<span class="instruction">LDBM</span> 0x14"</span>
+F1  <span class="instruction">PFIX</span> 1
+14  <span class="instruction">LDBM</span> 4
+<span class="comment">-- add</span>
+D0  <span class="instruction">ADD</span>
+<span class="comment">-- store into 0x01.</span>
+<span class="comment">-- since the high 4 bits are all 0, we don't need a <span class="instruction">PFIX</span>.</span>
+20  <span class="instruction">STAM</span> 1
+</code></pre>
+
+<p>This gives us the following program fragment:</p>
+
+<pre><code>F1 00 F1 11 D0 F1 12 D0 F1 13 D0 F1 14 D0 21
+</code></pre>
+
+<p>Since the fragment does not reference any code addresses (e.g. for jumps) we
+could put it <em>anywhere</em> in memory and as long as we got there, it would work.</p>
+
+<p>To try this out, let's pick the numbers 5, 6, 5, 6, 8 as our data to get the
+following program:</p>
+
+<pre><code><span class="address">0x00:</span> F2 40 C0 00 00 00 00 00 00 00 00 00 00 00 00 00
+<span class="address">0x10:</span> 05 06 05 06 08 00 00 00 00 00 00 00 00 00 00 00
+<span class="address">0x20:</span> F1 00 F1 11 D0 F1 12 D0 F1 13 D0 F1 14 D0 21
+</code></pre>
+
+<p>We also need a way to tell the program to stop at the end and the sequence
+<code>FF 9E</code> does this for us. We'll see why this sequence was chosen later on.
+The following bytes (minus addresses) can be pasted directly into a simulator:</p>
+
+<pre><code>F2 40 C0 00 00 00 00 00 00 00 00 00 00 00 00 00
+05 06 05 06 08 00 00 00 00 00 00 00 00 00 00 00
+F1 00 F1 11 D0 F1 12 D0 F1 13 D0 F1 14 D0 21 FF
+9E
+</code></pre>
+
+<p>The result should be that the A register contains 0x1E (=decimal 30), the sum of
+our five numbers. You can also try the program out for different numbers, of 
+course.</p>
+
+<h2>A function for division</h2>
+
+<p>Now that we've added the numbers, we want to divide the result by 5 and round
+up. But our processor doesn't have a <code>DIV</code> instruction, so we'll have to code it
+ourselves. We'll use repeated subtraction which is not an efficient way to do
+division for large numbers, but our numbers will only ever grow as far as 255
+and it makes the idea easier to illustrate.</p>
+
+<p>Instead of just coding this specific division, we'll write a general-purpose
+division with remainder function.
+For this we need to define a <em>calling convention</em>, saying how the function gets
+its inputs, what memory it can use for temporary variables and where it should
+put its return value. Here's one option (which we won't end up using):</p>
+
+<ul>
+<li>the function expects the dividend in the A register and the divisor in the
+B register</li>
+<li>the function will return the rounded <strong>down</strong> result in the A register and
+the remainder in the B register</li>
+<li>the function may use the memory at 0x00-0x0F for temporary variables</li>
+</ul>
+
+<p>So if A = 0x20 (decimal 32) and B = 0x05 when we call the function then we want
+A = 0x06 and B = 0x02 when it returns as 32/5 = 6 remainder 2. (We'll round up
+the average that we want afterwards.) Except that this convention won't work.</p>
+
+<p>To call our function, we just need to load the A and B registers with the
+correct inputs and then jump to the start of the function. But when the function
+finishes, we need to jump back to "the place where we came from" since we might
+have a larger program that calls the function from several different places. So
+our function needs an extra input, the <em>return address</em> which the caller is
+responsible for setting. (Most processors have special instructions for this,
+for example the x86 family has a <code>CALL (address)</code> instruction that does all the
+work necessary to call a function and <code>RET</code> that returns cleanly at the end.)</p>
+
+<p>Since we only have two registers but three inputs, some of them will have to go 
+into memory locations. (If you already know what a <em>stack</em> is, we're deliberately
+<strong>not</strong> using one here.) In fact I'd prefer them all in memory locations, since
+the function will need the registers to do its work so if the inputs were in
+registers, the first thing the function would have to do is save them to memory
+anyway. (This is much less of a problem on a machine with more registers -
+nowadays both x64 and RISC tend to have at least 16 registers readily available.
+And registers are much faster to access than memory so keeping everything there
+saves execution time.)</p>
+
+<p>Here's the calling convention we'll be using for the division function:</p>
+
+<ul>
+<li>the function expects the return address in memory location 0x00, the
+dividend in memory address 0x01 and the divisor in 0x02.</li>
+<li>the function returns the quotient in memory location 0x03 and the remainder
+in 0x03.</li>
+<li>the function may use 0x00-0x0F for temporary variables</li>
+</ul>
+
+<h2>Performing division with remainder</h2>
+
+<p>Let's think how we would divide with remainder through repeated subtraction in a higher language. The idea is to repeatedly subtract the divisor from the
+dividend and add one to the quotient each time we do this; stop when the
+dividend is smaller than the divisor (at which point what's left in the dividend
+is the remainder). Something like this:</p>
+
+<pre><code>function div_rem(dividend, divisor)
+    quotient := 0
+    while (dividend - divisor &gt;= 0)
+        dividend := dividend - divisor
+        quotient := quotient + 1
+    end
+    remainder := dividend
+    return quotient, remainder
+end
+</code></pre>
+
+<p>Let's allocate variables as follows.</p>
+
+<pre><code>0x00 = return_address
+0x01 = dividend
+0x02 = divisor
+0x03 = quotient
+0x04 = remainder
+</code></pre>
+
+<p>Assembly doesn't have blocks and if/for/while constructs, so we have to use
+branching instructions (otherwise known as GOTOs). Specifically we can do three
+kinds of branches:</p>
+
+<ul>
+<li><em>absolute branch</em>, load an address into theB register and go to it with <span class="instruction">BRB</span></li>
+<li><em>relative branch</em>, jump forwards/backwards from the current position with <span class="instruction">BR</span></li>
+<li><em>conditional branch</em>, do a relative branch if A is 0/negative (<span class="instruction">BRZ</span>/<span class="instruction">BRN</span>)</li>
+</ul>
+
+<p>Before we start working out branches, let's write one more version of our
+function with <em>labels</em>, placeholders for memory addresses that we'll fill in
+later. We'll use <code>GOTO label</code> and <code>GOTO label IF v=0</code> and <code>GOTO label IF v &lt; 0</code>
+to denote non-conditional and conditional branches.</p>
+
+<pre><code>function div_rem(dividend, divisor)
+    quotient := 0
+    LOOP:
+    GOTO END_LOOP IF (dividend - divisor) &lt; 0
+    dividend := dividend - divisor
+    quotient := quotient + 1
+    GOTO LOOP
+    END_LOOP:
+    remainder := dividend
+    return quotient, remainder
+end
+</code></pre>
+
+<p>This is a simple expansion of a while loop: at the start of each pass through
+the loop we check if the condition is true and exit if it's not; then we go
+through the loop and return to the start. We can start converting this to
+assembly, leaving in variable names and labels for now.</p>
+
+<pre><code><span class="comment">-- set quotient to 0</span>
+<span class="instruction">LDAC</span> 0
+<span class="instruction">STAM</span> quotient
+LOOP:          <span class="comment">-- this is not an assembly instruction!</span>
+<span class="comment">-- compute (dividend - divisor) and jump to end of loop if it's negative</span>
+<span class="instruction">LDAM</span> dividend
+<span class="instruction">LDBM</span> divisor
+<span class="instruction">SUB</span>            <span class="comment">-- A register now holds difference</span>
+<span class="instruction">BRN</span> END_LOOP
+<span class="comment">-- next up is "dividend := dividend - divisor" but</span>
+<span class="comment">-- if we're here then the difference we want is already in the A register</span>
+<span class="comment">-- so we can just store it into the dividend</span>
+<span class="instruction">STAM</span> dividend
+<span class="comment">-- increase quotient by 1</span>
+<span class="instruction">LDAM</span> quotient
+<span class="instruction">LDBC</span> 1
+<span class="instruction">ADD</span>
+<span class="instruction">STAM</span> quotient
+<span class="comment">-- and back to the loop start</span>
+<span class="instruction">BR</span> LOOP
+END_LOOP:      again a label not an instruction
+<span class="comment">-- remainder := dividend (yes we could optimise this a bit)</span>
+<span class="instruction">LDAM</span> dividend
+<span class="instruction">STAM</span> remainder
+<span class="comment">-- to return, we want to load the return address in the B register and <span class="instruction">BRB</span></span>
+<span class="instruction">LDBM</span> return_address
+<span class="instruction">BRB</span>            <span class="comment">-- Be Right Back :)</span>
+</code></pre>
+
+<p>The nice thing about this code is that it references no memory addresses
+directly so we can put it, and its variables, anywhere in memory. But we can't
+execute it yet like this. Let's first substitute in the variable addresses.
+Since they're all of the form 0x0* we don't have to use any prefixing.</p>
+
+<pre><code>          <span class="instruction">LDAC</span> 0
+          <span class="instruction">STAM</span> 3
+LOOP:     <span class="instruction">LDAM</span> 1
+          <span class="instruction">LDBM</span> 2
+          <span class="instruction">SUB</span>
+          <span class="instruction">BRN</span>  END_LOOP
+          <span class="instruction">STAM</span> 1
+          <span class="instruction">LDAM</span> 3
+          <span class="instruction">LDBC</span> 1
+          <span class="instruction">ADD</span>
+          <span class="instruction">STAM</span> 3
+          <span class="instruction">BR</span>   LOOP
+END_LOOP: <span class="instruction">LDAM</span> 1
+          <span class="instruction">STAM</span> 4
+          <span class="instruction">LDBM</span> 0
+          <span class="instruction">BRB</span>
+</code></pre>
+
+<p>Since we're using relative branches (one absolute, one conditional) we can
+compute the branch <em>offsets</em> before we've decided where in memory to stick this
+code. Code that does not have absolute jumps is called <em>position-independent</em>
+and generally nicer to work with.</p>
+
+<p>The instruction <code><span class="instruction">BRN</span> END_LOOP</code> needs to jump forward 7 instructions. But, when
+our instruction executes the processor has already increased the program counter
+to the next instruction so we'd only have to jump forwards 6 more.
+The <code><span class="instruction">BR</span> LOOP</code> has to jump backwards 9 isntructions, 10 to compensate for the
+already increased PC. How do we jump backwards? 256 - 10 = 246 which is
+hexadecimal 0xF6, so we just need to "<span class="instruction">BR</span> 0xF6" ... which takes two bytes,
+<code><span class="instruction">PFIX</span> F, <span class="instruction">BR</span> 6</code>. At which point our branch instruction has moved one position
+further in our code, so we need to adjust again.</p>
+
+<p>If we don't care about maximum efficiency and don't want to spend ages adjusting
+and re-adjusting, we can cheat a bit and represent all jumps as 2 bytes, since
+we're allowed to do a <code><span class="instruction">PFIX</span> 0</code> if we want to (this is also called a <em>no-op</em> as
+it doesn't do anything except use up space). So let's rewrite one last time,
+putting a <code><span class="instruction">PFIX</span></code> before each relative branch:</p>
+
+<pre><code> 0           <span class="instruction">LDAC</span> 0
+ 1           <span class="instruction">STAM</span> 3
+ 2 LOOP:     <span class="instruction">LDAM</span> 1
+ 3           <span class="instruction">LDBM</span> 2
+ 4           <span class="instruction">SUB</span>
+ 5           <span class="instruction">PFIX</span> ?
+ 6           <span class="instruction">BRN</span>  END_LOOP
+ 7           <span class="instruction">STAM</span> 1
+ 8           <span class="instruction">LDAM</span> 3
+ 9           <span class="instruction">LDBC</span> 1
+10           <span class="instruction">ADD</span>
+11           <span class="instruction">STAM</span> 3
+12           <span class="instruction">PFIX</span> ?
+13           <span class="instruction">BR</span>   LOOP
+14 END_LOOP: <span class="instruction">LDAM</span> 1
+15           <span class="instruction">STAM</span> 4
+16           <span class="instruction">LDBM</span> 0
+17           <span class="instruction">BRB</span>
+</code></pre>
+
+<p>And now we can really just read off the offsets. The <span class="instruction">BRN</span> in line (byte) 6 jumps
+to line 14, a difference of 8 - but since the program counter has already
+increased we only need to add 7. The formula is, if we want to jump from line
+<code>x</code> to line <code>y</code> we need to set the offset to <code>y-x-1</code>, adding 256 if this becomes
+negative. In line 13 we want to jump to 2, <code>2-13-1 = (-12)</code> so we add 256 to get
+244 (0xF4). Which finally gives us the following code, with the assembled byte
+before the instruction name:</p>
+
+<pre><code> 0           30  <span class="instruction">LDAC</span> 0  
+ 1           23  <span class="instruction">STAM</span> 3
+ 2 LOOP:     01  <span class="instruction">LDAM</span> 1
+ 3           12  <span class="instruction">LDBM</span> 2
+ 4           E0  <span class="instruction">SUB</span>
+ 5           F0  <span class="instruction">PFIX</span> 0
+ 6           B7  <span class="instruction">BRN</span>  7
+ 7           21  <span class="instruction">STAM</span> 1
+ 8           03  <span class="instruction">LDAM</span> 3
+ 9           41  <span class="instruction">LDBC</span> 1
+10           D0  <span class="instruction">ADD</span>
+11           23  <span class="instruction">STAM</span> 3
+12           FF  <span class="instruction">PFIX</span> F
+13           94  <span class="instruction">BR</span>   4
+14 END_LOOP: 01  <span class="instruction">LDAM</span> 1
+15           24  <span class="instruction">STAM</span> 4
+16           10  <span class="instruction">LDBM</span> 0
+17           C0  <span class="instruction">BRB</span>
+</code></pre>
+
+<p>Let's put this function at memory address 0x40, so our program looks like this.</p>
+
+<pre><code><span class="address">0x00:</span> F2 40 C0 00 00 00 00 00 00 00 00 00 00 00 00 00
+<span class="address">0x10:</span> 05 06 05 06 08 00 00 00 00 00 00 00 00 00 00 00
+<span class="address">0x20:</span> F1 00 F1 11 D0 F1 12 D0 F1 13 D0 F1 14 D0 21
+<span class="address">0x30:</span> (to do)
+<span class="address">0x40:</span> 30 23 01 12 E0 F0 B7 21 03 41 D0 23 FF 94 01 24
+<span class="address">0x50:</span> 10 C0
+</code></pre>
+
+<p>By the way, I mentioned there was another way we could jump to 0x20 from the
+very beginning. This is of course a relative branch: since we need to jump more 
+than 0x0F bytes forward we need a <span class="instruction">PFIX</span> so the alternative start <code><span class="address">0x00:</span> F1 9D</code>
+(<code><span class="instruction">PFIX</span> F, <span class="instruction">BR</span> D</code>) gets us there in 2 bytes. Bear in mind that the <code><span class="instruction">BR</span></code> is byte 2
+by which time the program counter is already at 0x03, and 0x03 + 0x1D = 0x20.</p>
+
+<h2>Finishing the program</h2>
+
+<p>We still have three points open:</p>
+
+<ul>
+<li>We need to call the division function, for which we need the parameters and
+return address set up.</li>
+<li>When it returns, we need to round up if the remainder is not 0.</li>
+<li>Then we need to halt the program, preferably with our result somewhere
+useful (let's use the A register).</li>
+</ul>
+
+<p>Our main program currently stops at 0x2E at which point we've just put the sum
+of our five numbers in memory at 0x01, which is where we want it. We can load
+the constant 5 into 0x02 with <code><span class="instruction">LDAC</span> 5, <span class="instruction">STAM</span> 2 (0x35, 0x22)</code>. Next up we want
+to put the return address into memory at 0x00. What is the return address? If I
+tell you that our function call will take 5 bytes including prefix and that
+we're currently up to byte 0x30, then we can use bytes 0x31-0x35 for the call
+and so we'll want to return to 0x36.</p>
+
+<p>We could hard-code the return address, but it's much better to compute it so
+we don't have to redo everything if we move the main code around. This is what
+the <code><span class="instruction">LDAP</span></code> instruction does, it fetches the current program counter into the A
+register from where we can store it. Consider the following code:</p>
+
+<pre><code><span class="address">0x31:</span> 54  <span class="instruction">LDAP</span> 4
+<span class="address">0x32:</span> 20  <span class="instruction">STAM</span> 0
+<span class="address">0x33:</span> F4  <span class="instruction">PFIX</span> 4
+<span class="address">0x34:</span> 40  <span class="instruction">LDBC</span> 0
+<span class="address">0x35:</span> C0  <span class="instruction">BRB</span>
+</code></pre>
+
+<p>The <code><span class="instruction">PFIX</span> 4, <span class="instruction">LDBC</span> 0</code> puts the address 0x40 of the function we're about to call
+in the B register, <code><span class="instruction">BRB</span></code> then calls it. We're hard-coding the function address
+but this is unavoidable: if we move the division function around then we will
+need to change the address here. But if we move the main function (the bit of
+code we're currently working on) around, we won't need to change anything.</p>
+
+<p><code><span class="instruction">LDAP</span> 4</code> fetches the current program counter plus 4 into the A register
+(since we know our jump code is 5 bytes, minus one because the counter has
+already advanced to 0x33 when we're executing instruction 0x32).
+<code><span class="instruction">STAM</span> 0</code> then saves it into 0x00 where the function expects it.</p>
+
+<p>When we return to 0x37, we know the quotient will be in 0x03 and the remainder
+in 0x04. We need to check if the remainder is 0 and add one to the quotient to
+round up in this case. The only place we can check if something is 0 is in the
+A register; if so then we want to add 1 to the quotient, if not we simply skip
+the adding-1 part.</p>
+
+<pre><code><span class="address">0x36:</span>      <span class="instruction">LDAM</span> 4   <span class="comment">-- the remainder</span>
+           <span class="instruction">BRZ</span>  IS0 <span class="comment">-- IS0 is a label</span>
+<span class="comment">-- if we're here, we didn't branch so the remainder is not zero</span>
+<span class="comment">-- so we add one to the quotient</span>
+           <span class="instruction">LDAM</span> 3   <span class="comment">-- the quotient</span>
+           <span class="instruction">LDBC</span> 1
+           <span class="instruction">ADD</span>
+           <span class="instruction">STAM</span> 3
+      IS0: <span class="instruction">LDAM</span> 3   <span class="comment">-- put the result in A register</span>
+<span class="comment">-- now we want to halt the program</span>
+</code></pre>
+
+<p>The offset here is 4 bytes (5 instructions minus 1 for the advanced program
+counter) so this assembles to <code>0x04 A4 03 41 D0 23 03</code>.</p>
+
+<h2>Halting the program</h2>
+
+<p>The "magic" instruction to halt a program is <code>0xFF 9E</code>. This disassembles to
+<code><span class="instruction">PFIX</span> F, <span class="instruction">BR</span> E</code> which would be a relative branch of <code>0xFE</code>, i.e. two bytes
+backwards. But since this sequence is exactly two bytes long, this would cause
+an infinite loop. So this instruction sequence is useless in a program and was
+chosen as the halt instruction. Specifically, the processor halts if it gets a
+<code><span class="instruction">BR</span></code> instruction and the offset register has the value <code>0xFE</code>, which only this
+sequence can produce. If you really want an infinite loop you can use the three-
+byte <code>0xF0 FF 9D</code> instead.</p>
+
+<h2>The final program</h2>
+
+<p>Putting it all together we get this program. (We've set 0x3F to 0x00 which
+doesn't matter since we'll stop before we ever get there.)</p>
+
+<pre><code>F2 40 C0 00 00 00 00 00 00 00 00 00 00 00 00 00
+05 06 05 06 08 00 00 00 00 00 00 00 00 00 00 00
+F1 00 F1 11 D0 F1 12 D0 F1 13 D0 F1 14 D0 21 35
+22 54 20 F4 40 C0 04 A4 03 41 D0 23 03 FF 9E 00
+30 23 01 12 E0 F0 B7 21 03 41 D0 23 FF 94 01 24
+10 C0
+</code></pre>
+
+<p>And here it is disassembled, with annotations.</p>
+
+<pre><code><span class="comment">-- SECTION: local variables (and the loader)</span>
+<span class="comment">-- initial loader, jump to _start</span>
+<span class="address">0x00:</span>          F2  <span class="instruction">PFIX</span>  2  <span class="comment">-- these 3 are "GOTO _start"</span>
+<span class="address">0x01:</span>          40  <span class="instruction">LDBC</span>  0  
+<span class="address">0x02:</span>          C0  <span class="instruction">BRB</span>   0
+
+<span class="comment">-- empty space</span>
+<span class="address">0x03:</span>          00  
+<span class="address">0x04:</span>          00  
+<span class="address">0x05:</span>          00  
+<span class="address">0x06:</span>          00  
+<span class="address">0x07:</span>          00  
+<span class="address">0x08:</span>          00  
+<span class="address">0x09:</span>          00  
+<span class="address">0x0A:</span>          00  
+<span class="address">0x0B:</span>          00  
+<span class="address">0x0C:</span>          00  
+<span class="address">0x0D:</span>          00  
+<span class="address">0x0E:</span>          00  
+<span class="address">0x0F:</span>          00  
+
+<span class="comment">-- SECTION: input</span>
+<span class="address">0x10:</span>          05  
+<span class="address">0x11:</span>          06  
+<span class="address">0x12:</span>          05  
+<span class="address">0x13:</span>          06  
+<span class="address">0x14:</span>          08  
+<span class="address">0x15:</span>          00  
+<span class="address">0x16:</span>          00  
+<span class="address">0x17:</span>          00  
+<span class="address">0x18:</span>          00  
+<span class="address">0x19:</span>          00  
+<span class="address">0x1A:</span>          00  
+<span class="address">0x1B:</span>          00  
+<span class="address">0x1C:</span>          00  
+<span class="address">0x1D:</span>          00  
+<span class="address">0x1E:</span>          00  
+<span class="address">0x1F:</span>          00  
+
+<span class="comment">-- SECTION: code</span>
+<span class="comment">-- start of program, load inputs and add</span>
+<span class="address">0x20:</span> _start:  F1  <span class="instruction">PFIX</span>  1  <span class="comment">-- these 2 are "<span class="instruction">LDAM</span> 0x10"</span>
+<span class="address">0x21:</span>          00  <span class="instruction">LDAM</span>  0  
+<span class="address">0x22:</span>          F1  <span class="instruction">PFIX</span>  1  <span class="comment">-- these 2 are "<span class="instruction">LDBM</span> 0x11"</span>
+<span class="address">0x23:</span>          11  <span class="instruction">LDBM</span>  1  
+<span class="address">0x24:</span>          D0  <span class="instruction">ADD</span>   0  
+<span class="address">0x25:</span>          F1  <span class="instruction">PFIX</span>  1  <span class="comment">-- these 2 are "<span class="instruction">LDBM</span> 0x12"</span>
+<span class="address">0x26:</span>          12  <span class="instruction">LDBM</span>  2  
+<span class="address">0x27:</span>          D0  <span class="instruction">ADD</span>   0  
+<span class="address">0x28:</span>          F1  <span class="instruction">PFIX</span>  1  <span class="comment">-- these 2 are "<span class="instruction">LDBM</span> 0x13"</span>
+<span class="address">0x29:</span>          13  <span class="instruction">LDBM</span>  3  
+<span class="address">0x2A:</span>          D0  <span class="instruction">ADD</span>   0  
+<span class="address">0x2B:</span>          F1  <span class="instruction">PFIX</span>  1  <span class="comment">-- these 2 are "<span class="instruction">LDBM</span> 0x14"</span>
+<span class="address">0x2C:</span>          14  <span class="instruction">LDBM</span>  4  
+<span class="address">0x2D:</span>          D0  <span class="instruction">ADD</span>   0
+
+<span class="comment">-- set up parameters and call _div  </span>
+<span class="address">0x2E:</span>          21  <span class="instruction">STAM</span>  1  <span class="comment">-- dividend: sum so far</span>
+<span class="address">0x2F:</span>          35  <span class="instruction">LDAC</span>  5  <span class="comment">-- divisor: 5</span>
+<span class="address">0x30:</span>          22  <span class="instruction">STAM</span>  2
+<span class="address">0x31:</span>          54  <span class="instruction">LDAP</span>  4  <span class="comment">-- return address</span>
+<span class="address">0x32:</span>          20  <span class="instruction">STAM</span>  0  
+<span class="address">0x33:</span>          F4  <span class="instruction">PFIX</span>  4  <span class="comment">-- these 3 instructions are "GOTO _div"</span>
+<span class="address">0x34:</span>          40  <span class="instruction">LDBC</span>  0  
+<span class="address">0x35:</span>          C0  <span class="instruction">BRB</span>   0  
+
+<span class="comment">-- returned, quotient is in 0x03 and remainder in 0x04</span>
+<span class="comment">-- if rem &gt; 0, add 1 to quotient</span>
+<span class="address">0x36:</span>          04  <span class="instruction">LDAM</span>  4  <span class="comment">-- <span class="instruction">LDAM</span> quotient</span>
+<span class="address">0x37:</span>          A4  <span class="instruction">BRZ</span>   4  <span class="comment">-- <span class="instruction">BRZ</span> is0</span>
+<span class="address">0x38:</span>          03  <span class="instruction">LDAM</span>  3  <span class="comment">-- <span class="instruction">LDAM</span> remainder</span>
+<span class="address">0x39:</span>          41  <span class="instruction">LDBC</span>  1  
+<span class="address">0x3A:</span>          D0  <span class="instruction">ADD</span>   0  
+<span class="address">0x3B:</span>          23  <span class="instruction">STAM</span>  3  <span class="comment">-- <span class="instruction">STAM</span> quotient</span>
+<span class="address">0x3C:</span> is0:     03  <span class="instruction">LDAM</span>  3  <span class="comment">-- <span class="instruction">LDAM</span> quotient</span>
+                            <span class="comment">--   (if rem=0 we haven't loaded it yet)</span>
+<span class="comment">-- HALT</span>
+<span class="address">0x3D:</span>          FF  <span class="instruction">PFIX</span>  F  
+<span class="address">0x3E:</span>          9E  <span class="instruction">BR</span>    E
+
+<span class="comment">-- unused  </span>
+<span class="address">0x3F:</span>          00  <span class="instruction">LDAM</span>  0
+
+<span class="comment">-- division function</span>
+<span class="comment">-- inputs: 0x00 return address,</span>
+<span class="comment">--         0x01 dividend,</span>
+<span class="comment">--         0x02 divisor</span>
+<span class="comment">-- output: 0x03 quotient</span>
+<span class="comment">--         0x04 remainder</span>
+<span class="address">0x40:</span> _div:    30  <span class="instruction">LDAC</span>  0  
+<span class="address">0x41:</span>          23  <span class="instruction">STAM</span>  3  <span class="comment">-- <span class="instruction">STAM</span> quotient</span>
+<span class="address">0x42:</span> loop:    01  <span class="instruction">LDAM</span>  1  <span class="comment">-- <span class="instruction">LDAM</span> dividend</span>
+<span class="address">0x43:</span>          12  <span class="instruction">LDBM</span>  2  <span class="comment">-- <span class="instruction">LDBM</span> divisor</span>
+<span class="address">0x44:</span>          E0  <span class="instruction">SUB</span>   0  
+<span class="address">0x45:</span>          F0  <span class="instruction">PFIX</span>  0  <span class="comment">-- these 2 are "<span class="instruction">BRN</span> endloop"</span>
+<span class="address">0x46:</span>          B7  <span class="instruction">BRN</span>   7  
+<span class="address">0x47:</span>          21  <span class="instruction">STAM</span>  1  <span class="comment">-- <span class="instruction">STAM</span> dividend</span>
+<span class="address">0x48:</span>          03  <span class="instruction">LDAM</span>  3  <span class="comment">-- <span class="instruction">LDAM</span> quotient</span>
+<span class="address">0x49:</span>          41  <span class="instruction">LDBC</span>  1 
+<span class="address">0x4A:</span>          D0  <span class="instruction">ADD</span>   0  
+<span class="address">0x4B:</span>          23  <span class="instruction">STAM</span>  3  <span class="comment">-- <span class="instruction">STAM</span> quotient </span>
+<span class="address">0x4C:</span>          FF  <span class="instruction">PFIX</span>  F  <span class="comment">-- these 2 are "<span class="instruction">BR</span> loop"</span>
+<span class="address">0x4D:</span>          94  <span class="instruction">BR</span>    4  
+<span class="address">0x4E:</span> endloop: 01  <span class="instruction">LDAM</span>  1  <span class="comment">-- <span class="instruction">LDAM</span> dividend</span>
+<span class="address">0x4F:</span>          24  <span class="instruction">STAM</span>  4  <span class="comment">-- <span class="instruction">STAM</span> remainder</span>
+<span class="address">0x50:</span>          10  <span class="instruction">LDBM</span>  0  <span class="comment">-- these 2 are "RETURN" with the return address</span>
+<span class="address">0x51:</span>          C0  <span class="instruction">BRB</span>   0  <span class="comment">--   at 0x00</span>
+</code></pre>
+</body>
+</html>
+
